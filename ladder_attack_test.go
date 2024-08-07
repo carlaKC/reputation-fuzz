@@ -21,9 +21,9 @@ func TestLadderAttackSetup(t *testing.T) {
 			{
 				trafficPortion: 25,
 			},
-                        {
-                                trafficPortion: 50,
-                        },
+			{
+				trafficPortion: 50,
+			},
 		},
 	}
 
@@ -40,6 +40,12 @@ func TestLadderAttackSetup(t *testing.T) {
 	assert.EqualValues(t, attack.channels[2].outgoingRevenue, 400_000)
 	assert.EqualValues(t, attack.channels[2].incomingReputation, 4_800_000)
 
-        assert.EqualValues(t, attack.channels[3].outgoingRevenue, 800_000)
+	assert.EqualValues(t, attack.channels[3].outgoingRevenue, 800_000)
 	assert.EqualValues(t, attack.channels[3].incomingReputation, 9_600_000)
+
+	var attackAmt uint64 = 20_667
+	endorsedTotal := attack.totalEndorsedOnTarget(attackAmt, 160)
+	require.EqualValues(t, 10, endorsedTotal)
+
+	require.False(t, attack.attackEffective(attackAmt, endorsedTotal, 160))
 }
