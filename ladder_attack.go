@@ -12,6 +12,17 @@ type ladderingAttack struct {
 	channels []channel
 }
 
+func (l *ladderingAttack) String() string {
+	str := fmt.Sprintf("Channels: %v", len(l.channels))
+
+	for _, channel := range l.channels {
+		str = fmt.Sprintf("%s\n  - Reputation: %v Revenue: %v", str,
+			channel.incomingReputation, channel.outgoingRevenue)
+	}
+
+	return str
+}
+
 type channel struct {
 	incomingReputation uint64
 	outgoingRevenue    uint64
