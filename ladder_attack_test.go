@@ -1,4 +1,4 @@
-package ladderattack
+package reputationfuzz
 
 import (
 	"testing"
