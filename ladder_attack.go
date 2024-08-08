@@ -124,7 +124,10 @@ func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
 		// The amount of reputation that has been built *above* the
 		// reputation threshold is the amount that we have available
 		// for in-flight HTLCs to be endorsed on this hop.
-		currentHopEndorsed := (candidateReputation - channel.outgoingRevenue) * 90 / (htlcHold * 10 * 60)
+		reputationSurplus := candidateReputation - channel.outgoingRevenue
+		currentHopEndorsed := htlcSizeFromReputation(
+			reputationSurplus, htlcHold,
+		)
 		if currentHopEndorsed == 0 {
 			return 0
 		}
@@ -211,6 +214,12 @@ func (l *ladderingAttack) attackOutcome(totalEndorsed,
 
 	outcome.reputationChange = slowJamCost
 	return outcome
+}
+
+// htlcSizeFromReputation returns the size of htlc that a node can get endorsed
+// with the reputation amount provided.
+func htlcSizeFromReputation(reputation, htlcHold uint64) uint64 {
+	return reputation * 90 / (htlcHold * 10 * 60)
 }
 
 // htlcReputationCost is the cost of getting a htlc endorsed (and the penalty
