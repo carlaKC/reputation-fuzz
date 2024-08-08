@@ -43,10 +43,15 @@ func TestLadderAttackSetup(t *testing.T) {
 	assert.EqualValues(t, attack.channels[3].outgoingRevenue, 800_000)
 	assert.EqualValues(t, attack.channels[3].incomingReputation, 9_600_000)
 
-	var attackAmt uint64 = 20_667
-	endorsedTotal := attack.totalEndorsedOnTarget(attackAmt, 160)
+	var (
+		attackAmt uint64 = 30_000
+		totalCltv uint64 = 300
+	)
+
+	endorsedTotal, err := attack.totalEndorsedOnTarget(attackAmt, totalCltv)
+	require.NoError(t, err)
 	require.EqualValues(t, 10, endorsedTotal)
 
-	outcome := attack.attackOutcome(endorsedTotal, 160)
+	outcome := attack.attackOutcome(endorsedTotal, totalCltv)
 	require.False(t, outcome.effective(attackAmt))
 }

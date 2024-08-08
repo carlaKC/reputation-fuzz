@@ -1,11 +1,20 @@
 package ladderattack
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 const (
 	revenuePeriodWeeks = 2
 
 	reputationPeriodWeeks = 24
+
+	cltvDelta uint64 = 80
+)
+
+var (
+	errInsufficientCltv = errors.New("insufficient cltv")
 )
 
 type ladderingAttack struct {
@@ -98,7 +107,7 @@ func newLadderingAttack(cfg ladderingAttackCfg) (*ladderingAttack, error) {
 // totalEndorsedOnTarget calculates the total amount that an attacker can get
 // endorsed on the target node given some payment amount and htlc hold time.
 func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
-	htlcHold uint64) uint64 {
+	totalCltv uint64) (uint64, error) {
 
 	var (
 		// The reputation total for the attacker is the amount that
@@ -107,7 +116,16 @@ func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
 		candidateReputation = attackerPayment
 
 		totalEndorsed uint64
+
+		// Get total cltv delta for the route, assuming 40 block final
+		// cltv.
+		totalCltvDelta = cltvDelta*uint64(len(l.channels)-1) + 40
 	)
+
+	if totalCltv < totalCltvDelta {
+		return 0, fmt.Errorf("%w: total cltv: %v < delta: %v",
+			errInsufficientCltv, totalCltv, totalCltvDelta)
+	}
 
 	// Based on the amount that the attacker gave us, run through our route
 	// to see how large of a HTLC the attacker can get endorsed on the final
@@ -118,7 +136,7 @@ func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
 		// If the node doesn't even have sufficient reputation to meet
 		// the threshold, it won't get any HTLCs endorsed.
 		if candidateReputation < channel.outgoingRevenue {
-			return 0
+			return 0, nil
 		}
 
 		// The amount of reputation that has been built *above* the
@@ -126,10 +144,10 @@ func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
 		// for in-flight HTLCs to be endorsed on this hop.
 		reputationSurplus := candidateReputation - channel.outgoingRevenue
 		currentHopEndorsed := htlcSizeFromReputation(
-			reputationSurplus, htlcHold,
+			reputationSurplus, totalCltv,
 		)
 		if currentHopEndorsed == 0 {
-			return 0
+			return 0, nil
 		}
 
 		// We can't get *more* endorsed on this hop than the amount
@@ -144,9 +162,10 @@ func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
 		// to try get endorsed by its peer, so we update our candidate
 		// reputation accordingly.
 		candidateReputation = channel.incomingReputation
+		totalCltv -= cltvDelta
 	}
 
-	return totalEndorsed
+	return totalEndorsed, nil
 }
 
 type attackOutcome struct {

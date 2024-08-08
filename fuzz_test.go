@@ -1,17 +1,20 @@
 package ladderattack
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 // FuzzLadderAttack tests for scenarios where a fuzzing attack is economical
 // for an attacker, setting up various network patterns from the fuzzer's input.
 func FuzzLadderAttack(f *testing.F) {
 	f.Add(
-		uint64(120_000), uint64(20_667), uint64(180), uint8(4),
+		uint64(120_000), uint64(20_667), uint64(300), uint8(4),
 		[]byte{100, 10, 25, 50},
 	)
 
 	f.Fuzz(func(t *testing.T, firstNodeTraffic, attackerPayment uint64,
-		htlcHold uint64, networkLength uint8, networkDescription []byte) {
+		cltvTotal uint64, networkLength uint8, networkDescription []byte) {
 
 		// We need to have at least 3 nodes in our network to run a
 		// meaningful test, and the current network diameter is 10 so
@@ -21,7 +24,7 @@ func FuzzLadderAttack(f *testing.F) {
 		}
 
 		// Restrict hold time to protocol maximum.
-		if htlcHold > 2016 {
+		if cltvTotal > 2016 {
 			return
 		}
 
@@ -67,16 +70,20 @@ func FuzzLadderAttack(f *testing.F) {
 			preRevenue = channel.outgoingRevenue
 		}
 
-		totalEndorsed := ladder.totalEndorsedOnTarget(
-			attackerPayment, htlcHold,
+		totalEndorsed, err := ladder.totalEndorsedOnTarget(
+			attackerPayment, cltvTotal,
 		)
-		outcome := ladder.attackOutcome(totalEndorsed, htlcHold)
+		if errors.Is(err, errInsufficientCltv) {
+			return
+		}
+
+		outcome := ladder.attackOutcome(totalEndorsed, cltvTotal)
 		if outcome.effective(attackerPayment) {
 			t.Errorf("Successful laddering attack: %v\n%v\n with "+
 				"first node: %v, attacker payment: %v, %v "+
 				"endorsed (height: %v) with outcome: %v", ladder,
 				cfg.trafficFlows, firstNodeTraffic,
-				attackerPayment, totalEndorsed, htlcHold,
+				attackerPayment, totalEndorsed, cltvTotal,
 				outcome)
 		}
 	})
