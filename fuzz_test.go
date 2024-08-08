@@ -5,14 +5,23 @@ import "testing"
 // FuzzLadderAttack tests for scenarios where a fuzzing attack is economical
 // for an attacker, setting up various network patterns from the fuzzer's input.
 func FuzzLadderAttack(f *testing.F) {
-	f.Add(uint64(120_000), uint64(20_667), uint8(4), []byte{100, 10, 25, 50})
+	f.Add(
+		uint64(120_000), uint64(20_667), uint64(180), uint8(4),
+		[]byte{100, 10, 25, 50},
+	)
+
 	f.Fuzz(func(t *testing.T, firstNodeTraffic, attackerPayment uint64,
-		networkLength uint8, networkDescription []byte) {
+		htlcHold uint64, networkLength uint8, networkDescription []byte) {
 
 		// We need to have at least 3 nodes in our network to run a
 		// meaningful test, and the current network diameter is 10 so
 		// we don't bother with more than that.
 		if networkLength < 3 || networkLength > 10 {
+			return
+		}
+
+		// Restrict hold time to protocol maximum.
+		if htlcHold > 2016 {
 			return
 		}
 
@@ -58,8 +67,17 @@ func FuzzLadderAttack(f *testing.F) {
 			preRevenue = channel.outgoingRevenue
 		}
 
-		if ladder.run(attackerPayment) {
-			t.Errorf("Successful laddering attack: %v\n%v\n with first node: %v, attacker payment: %v", ladder, cfg.trafficFlows, firstNodeTraffic, attackerPayment)
+		totalEndorsed := ladder.totalEndorsedOnTarget(
+			attackerPayment, htlcHold,
+		)
+		outcome := ladder.attackOutcome(totalEndorsed, htlcHold)
+		if outcome.effective(attackerPayment) {
+			t.Errorf("Successful laddering attack: %v\n%v\n with "+
+				"first node: %v, attacker payment: %v, %v "+
+				"endorsed (height: %v) with outcome: %v", ladder,
+				cfg.trafficFlows, firstNodeTraffic,
+				attackerPayment, totalEndorsed, htlcHold,
+				outcome)
 		}
 	})
 }
