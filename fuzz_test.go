@@ -70,6 +70,24 @@ func FuzzLadderAttack(f *testing.F) {
 			preRevenue = channel.outgoingRevenue
 		}
 
+		// We need to have a cltv that's big enough for our route.
+		finalCltv, err := ladder.finalCLTV(cltvTotal)
+		if err != nil {
+			return
+		}
+
+		// Check that the target node can get at least 1000 msat
+		// endorsed with their peer, otherwise they're not a very
+		// interesting node to target.
+		channelCount := len(ladder.channels)
+		targetReputation := ladder.channels[channelCount-2].incomingReputation
+		peerThreshold := ladder.channels[channelCount-1].outgoingRevenue
+		minimumHTLC := htlcReputationCost(1000, finalCltv)
+
+		if targetReputation < peerThreshold+minimumHTLC {
+			return
+		}
+
 		totalEndorsed, err := ladder.totalEndorsedOnTarget(
 			attackerPayment, cltvTotal,
 		)
@@ -78,23 +96,7 @@ func FuzzLadderAttack(f *testing.F) {
 		}
 
 		outcome := ladder.attackOutcome(totalEndorsed, cltvTotal)
-
 		if outcome.effective(attackerPayment) {
-			// Get the traffic contribution that the targeted node
-			// makes to its peer's traffic. If this is a very small
-			// portion, then it's not much of a laddering attack
-			// because the node is quite trivial to its peer.
-			targetTraffic := cfg.trafficFlows[len(cfg.trafficFlows)-1]
-
-			// Next get the savings that we actually get from using
-			// a ladder (vs just directly connecting to the target).
-			savingPercent := (outcome.targetCost - attackerPayment) / outcome.targetCost
-
-			// Laddering attack must significantly save us money.
-			if targetTraffic.trafficPortion < 10 && savingPercent < 5 {
-				return
-			}
-
 			t.Errorf("Successful laddering attack: %v\n%v\n with "+
 				"first node: %v, attacker payment: %v, %v "+
 				"endorsed (height: %v) with outcome: %v", ladder,

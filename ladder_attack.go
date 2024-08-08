@@ -104,6 +104,16 @@ func newLadderingAttack(cfg ladderingAttackCfg) (*ladderingAttack, error) {
 	}, nil
 }
 
+func (l *ladderingAttack) finalCLTV(totalCltv uint64) (uint64, error) {
+	routeDelta := uint64(len(l.channels)-1) * cltvDelta
+	if totalCltv < routeDelta {
+		return 0, fmt.Errorf("total: %v < delta: %v", totalCltv,
+			routeDelta)
+	}
+
+	return totalCltv - routeDelta, nil
+}
+
 // totalEndorsedOnTarget calculates the total amount that an attacker can get
 // endorsed on the target node given some payment amount and htlc hold time.
 func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
