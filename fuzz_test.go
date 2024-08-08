@@ -10,9 +10,9 @@ func FuzzLadderAttack(f *testing.F) {
 		networkLength uint8, networkDescription []byte) {
 
 		// We need to have at least 3 nodes in our network to run a
-		// meaningful test, and the current network diameter is 10 so 
-                // we don't bother with more than that.
-		if networkLength < 3  || networkLength > 10{
+		// meaningful test, and the current network diameter is 10 so
+		// we don't bother with more than that.
+		if networkLength < 3 || networkLength > 10 {
 			return
 		}
 
@@ -27,7 +27,6 @@ func FuzzLadderAttack(f *testing.F) {
 			trafficFlows:     make([]trafficFlow, networkLength),
 		}
 
-		var prevPortion uint8
 		for i := 0; i < int(networkLength); i++ {
 			// Make sure we have a value that's sane for a
 			// percentage.
@@ -36,23 +35,27 @@ func FuzzLadderAttack(f *testing.F) {
 				return
 			}
 
-			// By definition, we want traffic along our ladder to
-			// increase so that we can take advantage of cheaper
-			// nodes at the beginning of the route.
-			if portion < prevPortion {
-				return
-			}
-
 			cfg.trafficFlows[i] = trafficFlow{
 				trafficPortion: portion,
 			}
-
-			prevPortion = portion
 		}
 
 		ladder, err := newLadderingAttack(cfg)
 		if err != nil {
 			return
+		}
+
+		// We want the revenue threshold for nodes along the ladder to
+		// be increasing, otherwise we're not actually testing a ladder
+		// of nodes (connecting to a big node to attack a small node is
+		// not a cost saving.
+		var preRevenue uint64
+		for _, channel := range ladder.channels {
+			if channel.outgoingRevenue < preRevenue {
+				return
+			}
+
+			preRevenue = channel.outgoingRevenue
 		}
 
 		if ladder.run(attackerPayment) {
