@@ -95,16 +95,6 @@ func newLadderingAttack(cfg ladderingAttackCfg) (*ladderingAttack, error) {
 	}, nil
 }
 
-func (l *ladderingAttack) run(attackerPayment uint64) bool {
-	// htlcHold is the amount of time that the attacker will try
-	// to hold the HTLC on the targeted channel.
-	var htlcHold uint64 = 180
-
-	totalEndorsed := l.totalEndorsedOnTarget(attackerPayment, htlcHold)
-
-	return l.attackEffective(attackerPayment, totalEndorsed, htlcHold)
-}
-
 // totalEndorsedOnTarget calculates the total amount that an attacker can get
 // endorsed on the target node given some payment amount and htlc hold time.
 func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
@@ -156,34 +146,71 @@ func (l *ladderingAttack) totalEndorsedOnTarget(attackerPayment uint64,
 	return totalEndorsed
 }
 
+type attackOutcome struct {
+	// The amount of reputation that the target node had to start with.
+	targetReputation uint64
+
+	// The threshold at which the target node loses reputation with its
+	// peer.
+	targetThreshold uint64
+
+	// The amount of reputation that the target node lost.
+	reputationChange uint64
+
+	// The cost of getting this reputation directly from the target node
+	// rather than performing a ladder attack.
+	targetCost uint64
+}
+
+func (a attackOutcome) ladderCheaper(attackerPayment uint64) bool {
+	return a.targetCost > attackerPayment
+}
+
+func (a attackOutcome) lostReputation() bool {
+	return a.targetReputation < a.targetThreshold+a.reputationChange
+}
+
+func (a attackOutcome) effective(attackerPayment uint64) bool {
+	return a.ladderCheaper(attackerPayment) && a.lostReputation()
+}
+
+func (a attackOutcome) String() string {
+	return fmt.Sprintf("Target has reputation: %v vs threshold: %v "+
+		"reputation changed by %v which would have cost %v to "+
+		"acquire with the target directly", a.targetReputation,
+		a.targetThreshold, a.reputationChange, a.targetCost)
+}
+
 // runAttack takes the amount that an attacker is willing to pay and returns a
 // bool indicating whether the attacker is able to sabotage the reputation of
 // the target node.
-func (l *ladderingAttack) attackEffective(attackerPayment,
-	totalEndorsed, htlcHold uint64) bool {
+func (l *ladderingAttack) attackOutcome(totalEndorsed,
+	htlcHold uint64) attackOutcome {
 
 	chanCount := len(l.channels)
 	finalNodeRevenue := l.channels[chanCount-1].outgoingRevenue
 	targetNode := l.channels[chanCount-2]
 
-	// If the targeted node didn't have good reputation with the last node
-	// anyway, then there was no attack to be had to begin with.
-	if targetNode.incomingReputation < finalNodeRevenue {
-		return false
-	}
-
 	// Calculate the total penalty for slowjamming.
 	// TODO: totalEndorsed * fee for outgoing node!!
 	slowJamCost := htlcReputationCost(totalEndorsed, htlcHold)
 
-	// For our laddering attack to be successful we need two things to be
-	// true:
-	// 1. The targeted node lost reputation from being slow jammed
-	// 2. The attack was actually cheaper than directly attacking the target
-	lostReputation := targetNode.incomingReputation < finalNodeRevenue+slowJamCost
-	ladderCheaper := targetNode.outgoingRevenue+slowJamCost > attackerPayment
+	outcome := attackOutcome{
+		targetReputation: targetNode.incomingReputation,
+		targetThreshold:  finalNodeRevenue,
+		// The cost of acquiring reputation directly with the target
+		// node is its revenue threshold plus the cost of HTLCs.
+		targetCost: targetNode.outgoingRevenue + slowJamCost,
+	}
 
-	return lostReputation && ladderCheaper
+	// If the targeted node didn't have good reputation with the last node
+	// anyway, then there was no attack to be had to begin with.
+	if targetNode.incomingReputation < finalNodeRevenue {
+		return outcome
+	}
+
+	outcome.reputationChange = slowJamCost
+	return outcome
 }
 
 // htlcReputationCost is the cost of getting a htlc endorsed (and the penalty

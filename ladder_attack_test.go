@@ -47,5 +47,6 @@ func TestLadderAttackSetup(t *testing.T) {
 	endorsedTotal := attack.totalEndorsedOnTarget(attackAmt, 160)
 	require.EqualValues(t, 10, endorsedTotal)
 
-	require.False(t, attack.attackEffective(attackAmt, endorsedTotal, 160))
+	outcome := attack.attackOutcome(endorsedTotal, 160)
+	require.False(t, outcome.effective(attackAmt))
 }
