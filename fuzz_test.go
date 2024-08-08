@@ -78,7 +78,23 @@ func FuzzLadderAttack(f *testing.F) {
 		}
 
 		outcome := ladder.attackOutcome(totalEndorsed, cltvTotal)
+
 		if outcome.effective(attackerPayment) {
+			// Get the traffic contribution that the targeted node
+			// makes to its peer's traffic. If this is a very small
+			// portion, then it's not much of a laddering attack
+			// because the node is quite trivial to its peer.
+			targetTraffic := cfg.trafficFlows[len(cfg.trafficFlows)-1]
+
+			// Next get the savings that we actually get from using
+			// a ladder (vs just directly connecting to the target).
+			savingPercent := (outcome.targetCost - attackerPayment) / outcome.targetCost
+
+			// Laddering attack must significantly save us money.
+			if targetTraffic.trafficPortion < 10 && savingPercent < 5 {
+				return
+			}
+
 			t.Errorf("Successful laddering attack: %v\n%v\n with "+
 				"first node: %v, attacker payment: %v, %v "+
 				"endorsed (height: %v) with outcome: %v", ladder,
