@@ -127,11 +127,11 @@ func FuzzSurgeAttack(f *testing.F) {
 		0x55, 0xF6, 0x48, 0x12, 0x00, 0x00, 0x00, 0x00, // 306875861
 		0x8C, 0xDA, 0x2C, 0x10, 0x00, 0x00, 0x00, 0x00, // 271043852
 	}
-	f.Add(uint8(10), honestPeers)
+	f.Add(uint32(10), honestPeers)
 
-	f.Fuzz(func(t *testing.T, peerCount uint8, peerTraffic []byte) {
+	f.Fuzz(func(t *testing.T, peerCount uint32, peerTraffic []byte) {
 		// Attacks are only interesting with 2+ nodes.
-		if peerCount < 2 {
+		if peerCount < 2 || peerCount > 1000 {
 			return
 		}
 
