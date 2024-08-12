@@ -5,6 +5,12 @@ import (
 	"sort"
 )
 
+// minimumHTLCReputation is the minimum size of HTLC that we require a peer to
+// be able to get endorsed for it to have sufficient reputation for us to care
+// about the results that we get from fuzzing, expressed in msat. This
+// represents around $1 at the time of writing.
+const minimumHTLCReputation = 17_00_000
+
 type surgeAttackOutcome struct {
 	cutoffReputation uint64
 	peaceRevenue     uint64
@@ -24,7 +30,12 @@ func (s *surgeAttackOutcome) success() (bool, error) {
 	// If the reputation that we're cutting off is less than the peace
 	// time revenue, the peers never had good reputation to start with
 	// so there's no point in attacking.
-	if s.cutoffReputation < s.peaceRevenue {
+	//
+	// Height is hardcoded to a low value here because it isn't really
+	// all that relevant to the attack.
+	htlcEndorsed := htlcReputationCost(minimumHTLCReputation, 100)
+
+	if s.cutoffReputation < s.peaceRevenue+htlcEndorsed {
 		return false, nil
 	}
 
@@ -42,6 +53,10 @@ func (s *surgeAttackOutcome) success() (bool, error) {
 	// The attack is only successful if the node earns less than in times
 	/// of peace.
 	return attackerPays+s.attackRevenue < s.peaceRevenue, nil
+}
+
+func revenueFromReputation(reputation uint64) uint64 {
+	return reputation * revenuePeriodWeeks / reputationPeriodWeeks
 }
 
 // surgeAttack determines whether a targeted node will lose reputation if
@@ -73,11 +88,11 @@ func surgeAttack(honestPeers []uint64, cutoffIndex int) (*surgeAttackOutcome,
 		reputationToCutOff uint64
 	)
 
-	for i, fees := range honestPeers {
+	for i, reputation := range honestPeers {
 		// We're assuming constant traffic from the node, add it to our
 		// two week revenue total (representing when we're not under
 		// attack).
-		peerContribution := fees * revenuePeriodWeeks / reputationPeriodWeeks
+		peerContribution := revenueFromReputation(reputation)
 		twoWeekRevenue += peerContribution
 
 		// If we're beneath the cutoff, the attacker will need to pay
@@ -87,7 +102,7 @@ func surgeAttack(honestPeers []uint64, cutoffIndex int) (*surgeAttackOutcome,
 		// If we're after the cutoff index, this peer will still be able
 		// to earn us fees in the two week period that we're attacked.
 		if i <= cutoffIndex {
-			reputationToCutOff = fees
+			reputationToCutOff = reputation
 		} else {
 			attackRevenue += peerContribution
 		}
