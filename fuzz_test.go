@@ -85,7 +85,7 @@ func FuzzLadderAttack(f *testing.F) {
 		channelCount := len(ladder.channels)
 		targetReputation := ladder.channels[channelCount-2].incomingReputation
 		peerThreshold := ladder.channels[channelCount-1].outgoingRevenue
-		minimumHTLC := htlcReputationCost(1000, finalCltv)
+		minimumHTLC := htlcReputationCost(minimumHTLCReputation, finalCltv)
 
 		if targetReputation < peerThreshold+minimumHTLC {
 			return
