@@ -13,8 +13,10 @@ type surgeAttackOutcome struct {
 
 func (s *surgeAttackOutcome) String() string {
 	paid := s.cutoffReputation - s.peaceRevenue
-	return fmt.Sprintf("Attacker paid: %v to meet threshold: %v, "+
-		"node still earned: %v (%v honest + %v attacker)",
+	loss := (s.peaceRevenue - (paid + s.attackRevenue)) * 100 / s.peaceRevenue
+
+	return fmt.Sprintf("Node lost: %v %% of revenue  - attacker paid: %v to meet threshold: %v, "+
+		"node still earned: %v (%v honest + %v attacker)", loss,
 		paid, s.peaceRevenue, s.attackRevenue+paid, s.attackRevenue, paid)
 }
 

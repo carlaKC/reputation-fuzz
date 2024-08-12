@@ -3,6 +3,7 @@ package reputationfuzz
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math/rand"
 	"testing"
 )
@@ -167,9 +168,19 @@ func FuzzSurgeAttack(f *testing.F) {
 			return
 		}
 
+		networkStr := fmt.Sprintf("Peer count: %v, cutoff: %v:\n",
+			len(honestPeers), cutoff)
+
+		for _, peer := range honestPeers {
+			networkStr = fmt.Sprintf("%v  - %v reputation (6m) "+
+				"contributes %v revenue (2w)\n", networkStr,
+				peer, revenueFromReputation(peer),
+			)
+
+		}
 		if success, err := outcome.success(); success || err != nil {
-			t.Errorf("Successful attack against: %v with cutoff: %v\n"+
-				"Outcome: %v: %v", honestPeers, cutoff, outcome, err)
+			t.Errorf("Successful attack: %v with outcome: %v, %v",
+				networkStr, outcome, err)
 		}
 	})
 }
