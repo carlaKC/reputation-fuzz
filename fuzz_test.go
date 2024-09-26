@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/rand"
 	"testing"
 )
 
@@ -127,25 +126,17 @@ func FuzzSurgeAttack(f *testing.F) {
 		0x55, 0xF6, 0x48, 0x12, 0x00, 0x00, 0x00, 0x00, // 306875861
 		0x8C, 0xDA, 0x2C, 0x10, 0x00, 0x00, 0x00, 0x00, // 271043852
 	}
-	f.Add(uint32(10), honestPeers)
+	f.Add(uint16(5), honestPeers)
 
-	f.Fuzz(func(t *testing.T, peerCount uint32, peerTraffic []byte) {
+	f.Fuzz(func(t *testing.T, cutoffParam uint16, peerTraffic []byte) {
+		peerCount := len(peerTraffic) / 8
+
 		// Attacks are only interesting with 2+ nodes.
 		if peerCount < 2 || peerCount > 1000 {
 			return
 		}
 
-		cutoff := int(rand.Intn(int(peerCount)))
-
-		// Cutoff must be a valid index in the peer count slice.
-		if cutoff >= int(peerCount) {
-			return
-		}
-
-		// We need traffic flows expressed as uint64 for each node.
-		if len(peerTraffic) < int(peerCount)*8 {
-			return
-		}
+		cutoff := int(cutoffParam) % peerCount
 
 		honestPeers := make([]uint64, peerCount)
 		for i := 0; i < int(peerCount); i++ {
